@@ -106,15 +106,19 @@ class VOCSegmentation(data.Dataset):
         # re-define target label according to the CIL case
         target = self.gt_label_mapping(target)
         
-        # 将target的值全部加1（除了255），将saliency作为0类别
+        # 获取原始target中的背景区域掩码（标签为0的区域）
         target_np = np.array(target)
+        background_mask = target_np == 0
+        
+        # 将所有有效标签值加1
         valid_mask = target_np != 255
         target_np[valid_mask] += 1
         
-        # 将saliency map二值化并设置为0类别
+        # 只在原始背景区域中使用显著性图的信息
         saliency_np = np.array(saliency)
         saliency_np = (saliency_np > 127).astype(np.uint8)  # 二值化
-        target_np[saliency_np == 1] = 0
+        # 仅在background_mask为True且saliency_np为1的位置设置为0
+        target_np[(background_mask) & (saliency_np == 1)] = 0
         
         target = Image.fromarray(target_np)
         
