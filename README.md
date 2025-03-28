@@ -6,6 +6,12 @@
 ## Preparation
 
 ### Requirements
+```
+conda create -n segacil python=3.10
+conda activate segacil
+pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu124
+conda install numpy pillow scikit-learn tqdm matplotlib tensorboardX
+```
 
 - CUDA>=11.8
 - torch>=2.0.0

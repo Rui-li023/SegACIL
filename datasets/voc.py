@@ -54,6 +54,7 @@ class VOCSegmentation(data.Dataset):
             raise RuntimeError('Dataset not found or corrupted.')
         
         mask_dir = os.path.join(self.root, 'SegmentationClassAug')
+        saliency_dir = os.path.join(self.root, 'saliency_map')  # 添加saliency map目录
 
         assert os.path.exists(mask_dir), "SegmentationClassAug not found, please refer to README.md and prepare it manually"
             
@@ -68,6 +69,7 @@ class VOCSegmentation(data.Dataset):
             
         self.images = [os.path.join(image_dir, x + ".jpg") for x in file_names]
         self.masks = [os.path.join(mask_dir, x + ".png") for x in file_names]
+        self.saliency_maps = [os.path.join(saliency_dir, x + ".png") for x in file_names]
         self.file_names = file_names
         
         # class re-ordering
@@ -94,8 +96,27 @@ class VOCSegmentation(data.Dataset):
         img = Image.open(self.images[index]).convert('RGB')
         target = Image.open(self.masks[index])
         
+        # 读取saliency map（如果存在）
+        saliency_path = self.saliency_maps[index]
+        if os.path.exists(saliency_path):
+            saliency = Image.open(saliency_path).convert('L')
+        else:
+            saliency = Image.fromarray(np.zeros(target.size[::-1], dtype=np.uint8))
+
         # re-define target label according to the CIL case
         target = self.gt_label_mapping(target)
+        
+        # 将target的值全部加1（除了255），将saliency作为0类别
+        target_np = np.array(target)
+        valid_mask = target_np != 255
+        target_np[valid_mask] += 1
+        
+        # 将saliency map二值化并设置为0类别
+        saliency_np = np.array(saliency)
+        saliency_np = (saliency_np > 127).astype(np.uint8)  # 二值化
+        target_np[saliency_np == 1] = 0
+        
+        target = Image.fromarray(target_np)
         
         if self.transform is not None:
             img, target = self.transform(img, target)

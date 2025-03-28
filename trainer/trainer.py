@@ -65,17 +65,16 @@ class Trainer(object):
         ]
 
         self.device = 'cuda:0' if opts.gpu_id != None else 'cpu'
-        self.root_path = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{opts.setting}/step{opts.curr_step}/"
+        self.root_path = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{self.opts.setting}/step{opts.curr_step}/"
         self.ckpt_str = f"{self.root_path}%s_%s_%s_step_%d_{opts.setting}.pth"
 
-        self.root_path_prev = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{opts.setting}/step{opts.curr_step-1}/"
+        self.root_path_prev = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step{opts.curr_step-1}/"
         self.ckpt_str_prev = f"{self.root_path_prev}%s_%s_%s_step_%d_{opts.setting}.pth"
         mkdir(self.root_path)
 
         self.train_loader, self.val_loader, self.test_loader = init_dataloader(opts)
         self.total_itrs = self.opts.train_epoch * len(self.train_loader)
-        self.val_interval = max(100, self.total_itrs // 100)
-        print(f"train epoch : {self.opts.train_epoch} , iterations : {self.total_itrs} , val_interval : {self.val_interval}")
+        print(f"train epoch : {self.opts.train_epoch} , iterations : {self.total_itrs}")
         
         # init model
         if opts.curr_step == 0:
@@ -200,7 +199,7 @@ class Trainer(object):
                         
                         self.logger.write_loss(self.avg_loss.avg, epoch * len(self.train_loader) + seq + 1)
 
-                if len(self.train_loader) > 100 or epoch % 5 == 4:
+                if epoch % 51 == 49:
                     print("[Validation]")
                     val_score = self.validate()
                     print(self.metrics.to_str_val(val_score))
@@ -216,7 +215,7 @@ class Trainer(object):
                         self.best_score = curr_score
                         save_ckpt(self.ckpt_str % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step), 
                                 self.model, self.optimizer, self.best_score)
-                save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
+                    save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
         elif self.opts.curr_step == 1:
             self.opts.curr_step = 0
             self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(self.opts)
@@ -296,7 +295,12 @@ class Trainer(object):
                 preds = outputs.detach().max(dim=1)[1].cpu().numpy()
                 targets = labels.cpu().numpy()
                 
-                self.metrics.update(targets, preds)
+                # 排除前景mask (label=0) 的位置
+                valid_mask = targets != 0
+                self.metrics.update(
+                    targets[valid_mask], 
+                    preds[valid_mask]
+                )
                     
             test_score = self.metrics.get_results()
             
@@ -351,7 +355,12 @@ class Trainer(object):
                 preds = outputs.detach().max(dim=1)[1].cpu().numpy()
                 targets = labels.cpu().numpy()
                 
-                self.metrics.update(targets, preds)
+                # 排除前景mask (label=0) 的位置
+                valid_mask = targets != 0
+                self.metrics.update(
+                    targets[valid_mask], 
+                    preds[valid_mask]
+                )
             test_score = self.metrics.get_results()
 
         print(self.metrics.to_str(test_score))
@@ -395,7 +404,13 @@ class Trainer(object):
                 
                 preds = outputs.detach().max(dim=1)[1].cpu().numpy()
                 targets = labels.cpu().numpy()
-                self.metrics.update(targets, preds)
+                
+                # 排除前景mask (label=0) 的位置
+                valid_mask = targets != 0
+                self.metrics.update(
+                    targets[valid_mask], 
+                    preds[valid_mask]
+                )
                     
             score = self.metrics.get_results()
         return score

@@ -1,3 +1,4 @@
+import collections
 import torchvision
 import torch
 import torchvision.transforms.functional as F
@@ -6,7 +7,6 @@ import numbers
 import numpy as np
 from PIL import Image
 from torchvision.transforms import InterpolationMode
-
 
 #
 #  Extended Transforms for Semantic Segmentation
@@ -92,6 +92,60 @@ class ExtCenterCrop(object):
 
     def __repr__(self):
         return self.__class__.__name__ + '(size={0})'.format(self.size)
+
+
+class ExtRandomScale(object):
+    def __init__(self, scale_range, interpolation=InterpolationMode.BILINEAR):
+        self.scale_range = scale_range
+        self.interpolation = interpolation
+
+    def __call__(self, img, lbl):
+        """
+        Args:
+            img (PIL Image): Image to be scaled.
+            lbl (PIL Image): Label to be scaled.
+        Returns:
+            PIL Image: Rescaled image.
+            PIL Image: Rescaled label.
+        """
+        assert img.size == lbl.size
+        scale = random.uniform(self.scale_range[0], self.scale_range[1])
+        target_size = ( int(img.size[1]*scale), int(img.size[0]*scale) )
+        return F.resize(img, target_size, self.interpolation), \
+                F.resize(lbl, target_size, InterpolationMode.NEAREST)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(size={0}, interpolation={1})'.format(self.size, interpolate_str)
+
+class ExtScale(object):
+    """Resize the input PIL Image to the given scale.
+    Args:
+        Scale (sequence or int): scale factors
+        interpolation (int, optional): Desired interpolation. Default is
+            ``PIL.Image.BILINEAR``
+    """
+
+    def __init__(self, scale, interpolation=InterpolationMode.BILINEAR):
+        self.scale = scale
+        self.interpolation = interpolation
+
+    def __call__(self, img, lbl):
+        """
+        Args:
+            img (PIL Image): Image to be scaled.
+            lbl (PIL Image): Label to be scaled.
+        Returns:
+            PIL Image: Rescaled image.
+            PIL Image: Rescaled label.
+        """
+        assert img.size == lbl.size
+        target_size = ( int(img.size[1]*self.scale), int(img.size[0]*self.scale) ) # (H, W)
+        return F.resize(img, target_size, self.interpolation), \
+                F.resize(lbl, target_size, InterpolationMode.NEAREST)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(size={0}, interpolation={1})'.format(self.size, self.interpolation)
+
 
 class ExtRandomRotation(object):
     """Rotate the image by angle.
@@ -348,6 +402,36 @@ class ExtRandomCrop(object):
         return self.__class__.__name__ + '(size={0}, padding={1})'.format(self.size, self.padding)
 
 
+class ExtResize(object):
+    """Resize the input PIL Image to the given size.
+    Args:
+        size (sequence or int): Desired output size. If size is a sequence like
+            (h, w), output size will be matched to this. If size is an int,
+            smaller edge of the image will be matched to this number.
+            i.e, if height > width, then image will be rescaled to
+            (size * height / width, size)
+        interpolation (int, optional): Desired interpolation. Default is
+            ``PIL.Image.BILINEAR``
+    """
+
+    def __init__(self, size, interpolation=InterpolationMode.BILINEAR):
+        assert isinstance(size, int) or (isinstance(size, collections.Iterable) and len(size) == 2)
+        self.size = size
+        self.interpolation = interpolation
+
+    def __call__(self, img, lbl):
+        """
+        Args:
+            img (PIL Image): Image to be scaled.
+        Returns:
+            PIL Image: Rescaled image.
+        """
+        return F.resize(img, self.size, self.interpolation), \
+                F.resize(lbl, self.size, InterpolationMode.NEAREST)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(size={0}, interpolation={1})'.format(self.size, self.interpolation) 
+    
 class ExtColorJitter(object):
     """Randomly change the brightness, contrast and saturation of an image.
 

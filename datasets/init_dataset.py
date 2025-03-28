@@ -63,13 +63,13 @@ def init_dataloader(opts : Config):
     dataset_dict = get_dataset(opts)
 
     train_loader = DataLoader(
-        dataset_dict['train'], shuffle=True, batch_size=opts.batch_size, num_workers=4, pin_memory=True, drop_last=True)
+        dataset_dict['train'], shuffle=True, batch_size=opts.batch_size, num_workers=8, pin_memory=True, drop_last=True)
     
     if opts.local_rank == 0:
         val_loader = DataLoader(
-            dataset_dict['val'], batch_size=opts.val_batch_size, shuffle=False, num_workers=4, pin_memory=True)
+            dataset_dict['val'], batch_size=opts.val_batch_size, shuffle=False, num_workers=8, pin_memory=True)
         test_loader = DataLoader(
-            dataset_dict['test'], batch_size=opts.val_batch_size, shuffle=False, num_workers=4, pin_memory=True)
+            dataset_dict['test'], batch_size=opts.val_batch_size, shuffle=False, num_workers=8, pin_memory=True)
     else:
         val_loader, test_loader = None, None
     
