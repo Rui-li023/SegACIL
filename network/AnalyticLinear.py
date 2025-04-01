@@ -55,7 +55,7 @@ class AnalyticLinear(torch.nn.Linear, metaclass=ABCMeta):
 
         if self.bias:
             X = torch.cat((X, torch.ones(X.shape[0], 1).to(X)), dim=-1)
-        P=X @ self.weight #B * HW, buffersize->B * HW, num_classes
+        P = X @ self.weight #B * HW, buffersize->B * HW, num_classes
         #B * HW, num_classes->B, H,W, num_classes
         P = P.view(B, int(HW**0.5), int(HW**0.5), -1)
 
@@ -133,9 +133,15 @@ class RecursiveLinear(AnalyticLinear):
         
         # print(num_targets)
         epsilon = 1e-3
-        if num_targets > self.out_features:
+        if num_targets > self.out_features and self.weight.shape[1] == 0:
             increment_size = num_targets - self.out_features
             tail = torch.randn((self.weight.shape[0], increment_size)).to(self.weight) * epsilon
+            self.weight = torch.cat((self.weight, tail), dim=1)
+        elif num_targets > self.out_features:
+            increment_size = num_targets - self.out_features
+            unknown_weight = self.weight[:, 0:1]
+            tail = unknown_weight.repeat(1, increment_size)  # 沿列方向重复
+            tail = tail + torch.randn_like(tail) * epsilon * epsilon
             self.weight = torch.cat((self.weight, tail), dim=1)
         elif num_targets < self.out_features:
             increment_size = self.out_features - num_targets
@@ -269,3 +275,8 @@ class GeneralizedARM(AnalyticLinear):
 
         # 计算权重，使用线性求解器代替矩阵求逆
         self.weight = torch.linalg.solve(A, C)
+        # Normalize each column of self.weight (class-wise normalization)
+        # Compute the L2 norm of each column
+        norms = torch.norm(self.weight, p=2, dim=0, keepdim=True)  # Shape: (1, out_features)
+        # Normalize by dividing each column by its L2 norm
+        self.weight = self.weight / norms

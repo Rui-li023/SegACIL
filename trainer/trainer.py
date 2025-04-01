@@ -63,8 +63,8 @@ class Trainer(object):
             sum(len(get_tasks(opts.dataset, opts.task, step)) for step in range(opts.curr_step)), 
             sum(len(get_tasks(opts.dataset, opts.task, step)) for step in range(opts.curr_step+1))
         ]
-
-        self.device = 'cuda:0' if opts.gpu_id != None else 'cpu'
+        print(self.curr_idx)
+        self.device = f'cuda:{opts.gpu_id[0]}' if opts.gpu_id != None else 'cpu'
         self.root_path = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{self.opts.setting}/step{opts.curr_step}/"
         self.ckpt_str = f"{self.root_path}%s_%s_%s_step_%d_{opts.setting}.pth"
 
@@ -85,13 +85,11 @@ class Trainer(object):
             self.scheduler = build_scheduler(opts, self.optimizer, self.total_itrs)
             self.criterion = build_criterion(opts)
 
-        
         # previous step checkpoint
         if self.opts.curr_step <= 1:  
             self.ckpt = self.ckpt_str_prev % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step - 1)
         elif self.opts.curr_step > 1:
             self.ckpt = self.root_path_prev + "final.pth"
-
 
         self.best_score = -1
 
@@ -127,7 +125,6 @@ class Trainer(object):
         set_bn_momentum(self.model.backbone, momentum=0.01)
 
         self.model = self.model.to(self.device)
-        
 
     def init_ckpt(self):
         if self.opts.curr_step > 0:  # previous step checkpoint
@@ -153,7 +150,6 @@ class Trainer(object):
         except (KeyError) as e:
             raise RuntimeError(f"Error loading checkpoint from '{self.ckpt}': {e}")
 
-
     def init_optimizer(self):
         training_params = [{'params': self.model.backbone.parameters(), 'lr': 0.001},
                         {'params': self.model.classifier.parameters(), 'lr': 0.01}]
@@ -164,7 +160,6 @@ class Trainer(object):
                                     nesterov=True)
         return optimizer
     
-
     def train(self):
         # =====  Train  =====
         if self.opts.curr_step == 0:
@@ -199,27 +194,28 @@ class Trainer(object):
                         
                         self.logger.write_loss(self.avg_loss.avg, epoch * len(self.train_loader) + seq + 1)
 
-                if epoch % 51 == 49:
-                    print("[Validation]")
-                    val_score = self.validate()
-                    print(self.metrics.to_str_val(val_score))
-                    
-                    class_iou = list(val_score['Class IoU'].values())
-                    val_score_mean = np.mean([class_iou[i] for i in range(self.curr_idx[0], self.curr_idx[1])] + [class_iou[0]])
-                    curr_score = np.mean([class_iou[i] for i in range(self.curr_idx[0], self.curr_idx[1])])
-                    print(f"curr_val_score : {curr_score:.4f}\n")
-                    self.logger.write_score(curr_score, epoch)
-                    
-                    if curr_score > self.best_score:
-                        print(f"... save best ckpt : {curr_score}")
-                        self.best_score = curr_score
-                        save_ckpt(self.ckpt_str % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step), 
-                                self.model, self.optimizer, self.best_score)
-                    save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
+                # if epoch % 5 == 0:
+                print("[Validation]")
+                val_score = self.validate()
+                print(self.metrics.to_str_val(val_score))
+                
+                class_iou = list(val_score['Class IoU'].values())
+                # val_score_mean = np.mean([class_iou[i] for i in range(self.curr_idx[0], self.curr_idx[1])] + [class_iou[0]])
+                curr_score = np.mean([class_iou[i] for i in range(self.curr_idx[0]+1, self.curr_idx[1]+1)])
+                print(f"curr_val_score : {curr_score:.4f}\n")
+                self.logger.write_score(curr_score, epoch)
+                
+                if curr_score > self.best_score:
+                    print(f"... save best ckpt : {curr_score}")
+                    self.best_score = curr_score
+                    save_ckpt(self.ckpt_str % (self.opts.model, self.opts.dataset, self.opts.task, self.opts.curr_step), 
+                            self.model, self.optimizer, self.best_score)
+                save_ckpt(self.root_path + "final.pth", self.model, self.optimizer, curr_score)
         elif self.opts.curr_step == 1:
+            self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
+            self.metrics = StreamSegMetrics(self.opts.num_classes[:-1], dataset=self.opts.dataset)
             self.opts.curr_step = 0
             self.train_loader0, self.val_loader0, self.test_loader0 = init_dataloader(self.opts)
-            self.root_path0 = f"checkpoints/{self.opts.subpath}/{self.opts.dataset}/{self.opts.task}/{self.opts.setting}/step0/"
             self.model = load_ckpt(self.ckpt)[0]
             self.model = self.model.to(self.device)
             print("make new model!")
@@ -234,7 +230,7 @@ class Trainer(object):
                 gamma=self.opts.gamma,
                 device=self.device,
                 dtype=torch.double,
-                linear=RecursiveLinear,
+                linear=GeneralizedARM,
             ).to(self.device).eval()
             for seq, (X, y, _) in enumerate(self.train_loader0):
                 X, y = X.to(self.device), y.to(self.device)
@@ -244,13 +240,15 @@ class Trainer(object):
             save_ckpt(self.root_path0 + "final.pth", self.model, None, None)
             del self.model
             self.do_evaluate_after_realign(mode='test')
-
+            self.metrics = StreamSegMetrics(self.opts.num_classes, dataset=self.opts.dataset)
+            best_ckpt = self.root_path0+"final.pth"
+            self.model_prev = load_ckpt(best_ckpt)[0].to(self.device).eval()
             print("start training")
             torch.cuda.empty_cache()
 
             for _, (X, y, _) in enumerate(self.train_loader):
                 X, y = X.to(self.device), y.to(self.device)
-                if (self.opts.use_pseudo_label and self.opts.curr_step > 1 and self.opts.setting!='sequential'):
+                if (self.opts.use_pseudo_label and self.opts.setting!='sequential'):
                     y=self.get_pseudo_labels(X, y)
                 self.model.fit(X, y)
             self.model.update()
@@ -296,10 +294,8 @@ class Trainer(object):
                 targets = labels.cpu().numpy()
                 
                 # 排除前景mask (label=0) 的位置
-                valid_mask = targets != 0
                 self.metrics.update(
-                    targets[valid_mask], 
-                    preds[valid_mask]
+                    targets, preds
                 )
                     
             test_score = self.metrics.get_results()
@@ -355,11 +351,8 @@ class Trainer(object):
                 preds = outputs.detach().max(dim=1)[1].cpu().numpy()
                 targets = labels.cpu().numpy()
                 
-                # 排除前景mask (label=0) 的位置
-                valid_mask = targets != 0
                 self.metrics.update(
-                    targets[valid_mask], 
-                    preds[valid_mask]
+                    targets, preds
                 )
             test_score = self.metrics.get_results()
 
@@ -379,8 +372,6 @@ class Trainer(object):
         with open(f"{self.root_path0}/test_results_{current_time}.json", 'w') as f:
             f.write(json.dumps(test_score, indent=4))
             f.close()
-
-
 
     def validate(self, mode='val'):
         """Do validation and return specified samples"""
@@ -405,11 +396,8 @@ class Trainer(object):
                 preds = outputs.detach().max(dim=1)[1].cpu().numpy()
                 targets = labels.cpu().numpy()
                 
-                # 排除前景mask (label=0) 的位置
-                valid_mask = targets != 0
                 self.metrics.update(
-                    targets[valid_mask], 
-                    preds[valid_mask]
+                    targets, preds
                 )
                     
             score = self.metrics.get_results()
@@ -427,12 +415,12 @@ class Trainer(object):
                 outputs = torch.sigmoid(outputs)
             else:
                 outputs = torch.softmax(outputs, dim=1)
-            outputs=outputs.permute(0,3,1,2)
+            outputs = outputs.permute(0,3,1,2)
             outputs = F.interpolate(outputs, labels.shape[-2:], mode='bilinear', align_corners=False)
 
             pred_scores, pred_labels = torch.max(outputs, dim=1)
             pseudo_labels= torch.where(
-                (labels==0) & (pred_labels>0) & (pred_scores >= self.opts.pseudo_label_confidence), 
+                ((labels == 0) | (labels == 1)) & (pred_labels>1) & (pred_scores >= self.opts.pseudo_label_confidence), 
                 pred_labels, 
                 labels)
             return pseudo_labels

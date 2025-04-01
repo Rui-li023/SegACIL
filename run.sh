@@ -1,14 +1,16 @@
 
-DATA_ROOT="/mnt/petrelfs/lirui/SegACIL/datasets/data/voc"
+DATA_ROOT="datasets/data/voc"
 MODEL="deeplabv3_resnet101"
 LR=0.01
 LOSS_TYPE="bce_loss"
 DATASET="voc"
-TASK="15-1"
+TASK="10-1"
 LR_POLICY="poly"
-SUBPATH="1128"
+SUBPATH="overlap"
+SETTING="overlap"
+# SUBPATH="disjoint"
+# SETTING="disjoint"
 METHOD="acil"
-SETTING="sequential"
 TRAIN_EPOCH=50
 PRETRAINED_BACKBONE="--pretrained_backbone"
 BUFFER=8196
@@ -20,7 +22,7 @@ SPECIAL_BATCH_SIZE=32   # Batch size for step=0
 
 
 # Loop through steps
-START_STEP=1
+START_STEP=0
 END_STEP=10
 STEP_INCREMENT=1
 
@@ -51,5 +53,7 @@ do
         --train_epoch $TRAIN_EPOCH \
         --gamma 1 \
         --buffer $BUFFER \
-        --output_stride $OUTPUT_STRIDE
+        --output_stride $OUTPUT_STRIDE \
+        --use_pseudo_label \
+        --gpu 1
 done

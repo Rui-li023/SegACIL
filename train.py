@@ -16,7 +16,7 @@ def main(opts : Config):
     opts.num_classes = [len(get_tasks(opts.dataset, opts.task, step)) for step in range(opts.curr_step+1)]
     opts.target_cls = [get_tasks(opts.dataset, opts.task, step) for step in range(opts.curr_step+1)]
 
-    opts.num_classes = [1, opts.num_classes[0]-1] + opts.num_classes[1:]
+    opts.num_classes = [2, opts.num_classes[0]-1] + opts.num_classes[1:]
 
 
     print("==============================================")

@@ -24,7 +24,7 @@ class Config:
     step_size: int = 10000
     crop_val: bool = True
     batch_size: int = 32
-    val_batch_size: int = 1
+    val_batch_size: int = 16
     crop_size: int = 513
 
     ckpt: Optional[str] = None
@@ -58,7 +58,7 @@ class Config:
     method: str = 'None'
 
     use_pseudo_label: bool = False
-    pseudo_label_confidence: float = 0.7
+    pseudo_label_confidence: float = 0.6
 
 
 def get_argparser() -> Config:
