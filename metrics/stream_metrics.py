@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 
 VOC_CLASSES = [
-        "front", "background", "aeroplane", "bicycle", "bird",
+        "background", "aeroplane", "bicycle", "bird",
         "boat", "bottle", "bus", "car", "cat", "chair",
         "cow", "diningtable", "dog", "horse", "motorbike",
         "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor",
@@ -101,41 +101,8 @@ class StreamSegMetrics(_StreamMetrics):
         ).reshape(self.n_classes, self.n_classes)
         return hist
 
-    def get_results(self):
-        """Returns accuracy score evaluation result, ignoring class 0 (first row and column).
-            - overall accuracy
-            - mean accuracy
-            - mean IU
-            - fwavacc
-        """
-        EPS = 1e-6
-        hist = self.confusion_matrix
-        hist_no_void = hist[1:, 1:]
-
-        acc = np.diag(hist_no_void).sum() / (hist_no_void.sum() + EPS)
-
-        acc_cls = np.diag(hist_no_void) / (hist_no_void.sum(axis=1) + EPS)
-        cls_acc = dict(zip(range(1, self.n_classes), acc_cls)) 
-        acc_cls_mean = np.nanmean(acc_cls)
-
-        iu = np.diag(hist_no_void) / (hist_no_void.sum(axis=1) + hist_no_void.sum(axis=0) - np.diag(hist_no_void) + EPS)
-        mean_iu = np.nanmean(iu)
-        cls_iu = dict(zip(range(1, self.n_classes), iu)) 
-
-        freq = hist_no_void.sum(axis=1) / (hist_no_void.sum() + EPS)
-        fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
-
-        return {
-            "Overall Acc": acc,
-            "Mean Acc": acc_cls_mean,
-            "FreqW Acc": fwavacc,
-            "Class Acc": cls_acc,
-            "Mean IoU": mean_iu,
-            "Class IoU": cls_iu,
-        }
-        
     # def get_results(self):
-    #     """Returns accuracy score evaluation result.
+    #     """Returns accuracy score evaluation result, ignoring class 0 (first row and column).
     #         - overall accuracy
     #         - mean accuracy
     #         - mean IU
@@ -143,26 +110,59 @@ class StreamSegMetrics(_StreamMetrics):
     #     """
     #     EPS = 1e-6
     #     hist = self.confusion_matrix
-    #     acc = np.diag(hist).sum() / hist.sum()
-    #     acc_cls = np.diag(hist) / (hist.sum(axis=1) + EPS)
-    #     cls_acc = dict(zip(range(self.n_classes), acc_cls))
-    #     acc_cls = np.nanmean(acc_cls)
-        
-    #     iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist) + EPS)
-    #     #mean_iu = np.nanmean(iu[iu.nonzero()])
+    #     hist_no_void = hist[1:, 1:]
+
+    #     acc = np.diag(hist_no_void).sum() / (hist_no_void.sum() + EPS)
+
+    #     acc_cls = np.diag(hist_no_void) / (hist_no_void.sum(axis=1) + EPS)
+    #     cls_acc = dict(zip(range(1, self.n_classes), acc_cls)) 
+    #     acc_cls_mean = np.nanmean(acc_cls)
+
+    #     iu = np.diag(hist_no_void) / (hist_no_void.sum(axis=1) + hist_no_void.sum(axis=0) - np.diag(hist_no_void) + EPS)
     #     mean_iu = np.nanmean(iu)
-    #     freq = hist.sum(axis=1) / hist.sum()
+    #     cls_iu = dict(zip(range(1, self.n_classes), iu)) 
+
+    #     freq = hist_no_void.sum(axis=1) / (hist_no_void.sum() + EPS)
     #     fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
-    #     cls_iu = dict(zip(range(self.n_classes), iu))
 
     #     return {
-    #             "Overall Acc": acc,
-    #             "Mean Acc": acc_cls,
-    #             "FreqW Acc": fwavacc,
-    #             "Class Acc": cls_acc,
-    #             "Mean IoU": mean_iu,
-    #             "Class IoU": cls_iu,
-    #         }
+    #         "Overall Acc": acc,
+    #         "Mean Acc": acc_cls_mean,
+    #         "FreqW Acc": fwavacc,
+    #         "Class Acc": cls_acc,
+    #         "Mean IoU": mean_iu,
+    #         "Class IoU": cls_iu,
+    #     }
+        
+    def get_results(self):
+        """Returns accuracy score evaluation result.
+            - overall accuracy
+            - mean accuracy
+            - mean IU
+            - fwavacc
+        """
+        EPS = 1e-6
+        hist = self.confusion_matrix
+        acc = np.diag(hist).sum() / hist.sum()
+        acc_cls = np.diag(hist) / (hist.sum(axis=1) + EPS)
+        cls_acc = dict(zip(range(self.n_classes), acc_cls))
+        acc_cls = np.nanmean(acc_cls)
+        
+        iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist) + EPS)
+        #mean_iu = np.nanmean(iu[iu.nonzero()])
+        mean_iu = np.nanmean(iu)
+        freq = hist.sum(axis=1) / hist.sum()
+        fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
+        cls_iu = dict(zip(range(self.n_classes), iu))
+
+        return {
+                "Overall Acc": acc,
+                "Mean Acc": acc_cls,
+                "FreqW Acc": fwavacc,
+                "Class Acc": cls_acc,
+                "Mean IoU": mean_iu,
+                "Class IoU": cls_iu,
+            }
         
     def reset(self):
         self.confusion_matrix = np.zeros((self.n_classes, self.n_classes))

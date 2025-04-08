@@ -194,13 +194,10 @@ class Trainer(object):
                         
                         self.logger.write_loss(self.avg_loss.avg, epoch * len(self.train_loader) + seq + 1)
 
-                # if epoch % 5 == 0:
                 print("[Validation]")
                 val_score = self.validate()
                 print(self.metrics.to_str_val(val_score))
-                
                 class_iou = list(val_score['Class IoU'].values())
-                # val_score_mean = np.mean([class_iou[i] for i in range(self.curr_idx[0], self.curr_idx[1])] + [class_iou[0]])
                 curr_score = np.mean([class_iou[i] for i in range(self.curr_idx[0]+1, self.curr_idx[1]+1)])
                 print(f"curr_val_score : {curr_score:.4f}\n")
                 self.logger.write_score(curr_score, epoch)
@@ -239,14 +236,15 @@ class Trainer(object):
             print("start test!")
             save_ckpt(self.root_path0 + "final.pth", self.model, None, None)
             del self.model
+            torch.cuda.empty_cache()
+            
             self.do_evaluate_after_realign(mode='test')
             self.metrics = StreamSegMetrics(self.opts.num_classes, dataset=self.opts.dataset)
             best_ckpt = self.root_path0+"final.pth"
             self.model_prev = load_ckpt(best_ckpt)[0].to(self.device).eval()
             print("start training")
-            torch.cuda.empty_cache()
 
-            for _, (X, y, _) in enumerate(self.train_loader):
+            for _, (X, y, _) in enumerate(tqdm(self.train_loader)):
                 X, y = X.to(self.device), y.to(self.device)
                 if (self.opts.use_pseudo_label and self.opts.setting!='sequential'):
                     y=self.get_pseudo_labels(X, y)
@@ -258,10 +256,10 @@ class Trainer(object):
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()
             self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
 
-            for _, (X, y, _) in enumerate(self.train_loader):
+            for _, (X, y, _) in enumerate(tqdm(self.train_loader)):
                 X, y = X.to(self.device), y.to(self.device)
                 if (self.opts.use_pseudo_label and self.opts.curr_step > 1 and self.opts.setting!='sequential'):
-                        y=self.get_pseudo_labels(X, y)
+                    y = self.get_pseudo_labels(X, y)
                 self.model.fit(X, y)
             self.model.update()
 

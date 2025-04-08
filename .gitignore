@@ -54,3 +54,12 @@ checkpoints/
 data_root/
 
 logs/**
+
+datasets/data/ade/
+datasets/data/voc/Annotations/
+datasets/data/voc/ImageSets/
+datasets/data/voc/SHOW.py
+datasets/data/voc/SegmentationClassAug.zip
+datasets/data/voc/SegmentationClassAug/
+datasets/data/voc/VOCtrainval_11-May-2012.tar
+datasets/data/voc/saliency_map.zip
