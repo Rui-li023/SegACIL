@@ -198,7 +198,7 @@ class Trainer(object):
                 val_score = self.validate()
                 print(self.metrics.to_str_val(val_score))
                 class_iou = list(val_score['Class IoU'].values())
-                curr_score = np.mean([class_iou[i] for i in range(self.curr_idx[0]+1, self.curr_idx[1]+1)])
+                curr_score = np.mean([class_iou[i] for i in range(self.curr_idx[0], self.curr_idx[1])])
                 print(f"curr_val_score : {curr_score:.4f}\n")
                 self.logger.write_score(curr_score, epoch)
                 
@@ -418,7 +418,7 @@ class Trainer(object):
 
             pred_scores, pred_labels = torch.max(outputs, dim=1)
             pseudo_labels= torch.where(
-                ((labels == 0) | (labels == 1)) & (pred_labels>1) & (pred_scores >= self.opts.pseudo_label_confidence), 
+                (labels == 0) & (pred_labels>=1) & (pred_scores >= self.opts.pseudo_label_confidence), 
                 pred_labels, 
                 labels)
             return pseudo_labels

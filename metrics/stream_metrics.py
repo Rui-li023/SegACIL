@@ -70,7 +70,6 @@ class StreamSegMetrics(_StreamMetrics):
         
     def update(self, label_trues, label_preds):
         for lt, lp in zip(label_trues, label_preds):
-            lp = np.where(lp == 0, self.bg_idx, lp)
             self.confusion_matrix += self._fast_hist( lt.flatten(), lp.flatten() )
 
     def to_str_val(self, results):

@@ -260,7 +260,7 @@ class GeneralizedARM(AnalyticLinear):
         cnt_inv = 1 / cnt
         cnt_inv[torch.isinf(cnt_inv)] = 0  # 将 inf 替换为 0
         cnt_inv_mask = cnt != 0  # 创建一个掩码，标记 cnt 中不为 0 的位置
-
+        cnt_inv = torch.ones_like(cnt_inv)
         # 加权平均 A
         weighted_A = torch.zeros((self.in_features, self.in_features), device=self.weight.device, dtype=self.dtype)
         for idx, cls in enumerate(classes):
@@ -277,6 +277,6 @@ class GeneralizedARM(AnalyticLinear):
         self.weight = torch.linalg.solve(A, C)
         # Normalize each column of self.weight (class-wise normalization)
         # Compute the L2 norm of each column
-        norms = torch.norm(self.weight, p=2, dim=0, keepdim=True)  # Shape: (1, out_features)
+        # norms = torch.norm(self.weight, p=2, dim=0, keepdim=True)  # Shape: (1, out_features)
         # Normalize by dividing each column by its L2 norm
-        self.weight = self.weight / norms
+        # self.weight = self.weight / norms
