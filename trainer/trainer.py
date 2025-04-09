@@ -65,6 +65,7 @@ class Trainer(object):
         ]
         print(self.curr_idx)
         self.device = f'cuda:{opts.gpu_id[0]}' if opts.gpu_id != None else 'cpu'
+        self.device_prev = 'cuda:1'  # 为previous model设置第二个设备
         self.root_path = f"checkpoints/{opts.subpath}/{opts.dataset}/{self.opts.task}/{self.opts.setting}/step{opts.curr_step}/"
         self.ckpt_str = f"{self.root_path}%s_%s_%s_step_%d_{opts.setting}.pth"
 
@@ -241,7 +242,7 @@ class Trainer(object):
             self.do_evaluate_after_realign(mode='test')
             self.metrics = StreamSegMetrics(self.opts.num_classes, dataset=self.opts.dataset)
             best_ckpt = self.root_path0+"final.pth"
-            self.model_prev = load_ckpt(best_ckpt)[0].to(self.device).eval()
+            self.model_prev = load_ckpt(best_ckpt)[0].to(self.device_prev).eval()  # 加载到第二个设备
             print("start training")
 
             for _, (X, y, _) in enumerate(tqdm(self.train_loader)):
@@ -254,7 +255,7 @@ class Trainer(object):
             self.do_evaluate(mode='test')
         else:
             self.model = load_ckpt(self.ckpt)[0].to(self.device).eval()
-            self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
+            self.model_prev = load_ckpt(self.ckpt)[0].to(self.device_prev).eval()  # 加载到第二个设备
 
             for _, (X, y, _) in enumerate(tqdm(self.train_loader)):
                 X, y = X.to(self.device), y.to(self.device)
@@ -327,7 +328,7 @@ class Trainer(object):
         
         self.model = load_ckpt(best_ckpt)[0].to(self.device).eval()
         if self.opts.use_pseudo_label:
-            self.model_prev = load_ckpt(self.ckpt)[0].to(self.device).eval()
+            self.model_prev = load_ckpt(self.ckpt)[0].to(self.device_prev).eval()
         
         """Do validation and return specified samples"""
         self.metrics.reset()
@@ -403,11 +404,10 @@ class Trainer(object):
 
     def get_pseudo_labels(self, images, labels):
         with torch.no_grad():
+            # 将数据转移到device_prev上进行处理
+            images_prev = images.to(self.device_prev)
             
-            images = images.to(self.device, dtype=torch.float32, non_blocking=True)
-            labels = labels.to(self.device, dtype=torch.long, non_blocking=True)
-            
-            outputs= self.model_prev(images)
+            outputs = self.model_prev(images_prev)
 
             if self.opts.loss_type == 'bce_loss':
                 outputs = torch.sigmoid(outputs)
@@ -415,9 +415,12 @@ class Trainer(object):
                 outputs = torch.softmax(outputs, dim=1)
             outputs = outputs.permute(0,3,1,2)
             outputs = F.interpolate(outputs, labels.shape[-2:], mode='bilinear', align_corners=False)
-
+            
+            # 计算完成后将结果转移回原设备
+            outputs = outputs.to(self.device)
             pred_scores, pred_labels = torch.max(outputs, dim=1)
-            pseudo_labels= torch.where(
+            
+            pseudo_labels = torch.where(
                 (labels == 0) & (pred_labels>=1) & (pred_scores >= self.opts.pseudo_label_confidence), 
                 pred_labels, 
                 labels)
